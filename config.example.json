@@ -1,0 +1,16 @@
+{
+  "folders": [
+    {
+      "title": "Videos",
+      "path": "C:/Users/me/Videos"
+    },
+    {
+      "title": "Work renders",
+      "path": "D:/projects/film",
+      "key": "work"
+    }
+  ],
+  "hide": "_raw[.]|^x_",
+  "lang": "en",
+  "port": 8765
+}
