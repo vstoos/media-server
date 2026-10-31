@@ -1,6 +1,13 @@
 {
   "folders": [
     {
+      "title": "Finished films",
+      "path": "C:/Users/me/Videos/2025_trip",
+      "key": "final",
+      "only": "[.]mp4$",
+      "flat": true
+    },
+    {
       "title": "Videos",
       "path": "C:/Users/me/Videos"
     },

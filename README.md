@@ -51,6 +51,9 @@ Copy `config.example.json` to `config.json`:
 
 - `folders`: what to serve; `title` is shown, `key` (optional) is the URL prefix.
 - `hide`: regular expression for file and folder names to leave out (temporary renders etc.).
+- per folder, `only`: regular expression a file name must match (e.g. `"[.]mp4$"` for finished films
+  only), and `"flat": true` to hide its subfolders. Handy for a "Finished films" entry next to the
+  full folder tree.
 
 ## Start with Windows (optional)
 
