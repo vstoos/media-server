@@ -1,5 +1,6 @@
 """Read-only home video server: browse folders of videos and play them in the browser, HDR included.
-Audio files (mp3, m4a, wav, flac, ogg, opus, aac) are listed and play too.
+Audio files (mp3, m4a, wav, flac, ogg, opus, aac) are listed and play too; subtitles and text
+(srt, vtt, txt) open as a page to read, with a download link.
 
 usage: python media_server.py [--port 8765] [--bind 0.0.0.0] [--lang uk|en] [folder ...]
   With no folders, serves the ones in config.json next to this file, or else ~/Videos.
@@ -29,15 +30,17 @@ VIDEO = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".
          ".mkv": "video/x-matroska"}
 AUDIO = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav", ".flac": "audio/flac",
          ".ogg": "audio/ogg", ".opus": "audio/ogg"}
-MEDIA = {**VIDEO, **AUDIO}
+TEXTS = {".srt": "application/x-subrip", ".vtt": "text/vtt", ".txt": "text/plain"}
+MEDIA = {**VIDEO, **AUDIO, **TEXTS}
+TEXT_MAX = 2 << 20   # bigger text files are only offered for download
 CHUNK = 1 << 20
 TEXT = {
-    "uk": {"home": "Відео", "all": "Усі папки", "empty": "Тут немає відео чи аудіо.", "files": "відео",
+    "uk": {"home": "Відео", "all": "Усі папки", "empty": "Тут немає відео, аудіо чи субтитрів.", "files": "відео",
            "folders": "папок", "download": "Завантажити файл", "nf": "Не знайдено", "gb": "ГБ", "mb": "МБ",
-           "back": "Назад"},
-    "en": {"home": "Videos", "all": "All folders", "empty": "No videos or audio here.", "files": "videos",
+           "back": "Назад", "big": "Файл завеликий для перегляду, завантажте його."},
+    "en": {"home": "Videos", "all": "All folders", "empty": "No videos, audio or subtitles here.", "files": "videos",
            "folders": "folders", "download": "Download", "nf": "Not found", "gb": "GB", "mb": "MB",
-           "back": "Back"},
+           "back": "Back", "big": "Too big to show here; download it."},
 }
 
 PAGE = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
@@ -55,6 +58,9 @@ li a {{ display:block; padding:12px 14px; overflow-wrap:anywhere; }} .meta {{ co
 li.dir a::before {{ content:"\\1F4C1  "; }}
 video {{ width:100%; max-height:80vh; background:#000; border-radius:8px; }} audio {{ width:100%; }}
 li.aud a::before {{ content:"\\266A  "; color:var(--mut); }}
+li.txt a::before {{ content:"\\1F4C4  "; }}
+pre {{ background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; white-space:pre-wrap;
+      overflow-wrap:anywhere; font:14px/1.5 ui-monospace,Consolas,monospace; }}
 .crumbs {{ color:var(--mut); font-size:14px; overflow-wrap:anywhere; }}
 </style></head><body><main>{body}</main></body></html>"""
 
@@ -174,8 +180,10 @@ class Handler(BaseHTTPRequestHandler):
                 for d in dirs]
         for f in files:
             st = f.stat()
+            ext = os.path.splitext(f.name)[1].lower()
+            cls = ' class="aud"' if ext in AUDIO else ' class="txt"' if ext in TEXTS else ""
             rows.append('<li%s><a href="%s">%s<div class="meta">%s · %s</div></a></li>'
-                        % (' class="aud"' if os.path.splitext(f.name)[1].lower() in AUDIO else "", self.href(root[0], rel + [f.name], "play"), html.escape(f.name), self.human(st.st_size),
+                        % (cls, self.href(root[0], rel + [f.name], "play"), html.escape(f.name), self.human(st.st_size),
                            datetime.fromtimestamp(st.st_mtime).strftime("%d.%m.%Y %H:%M")))
         crumbs = ['<a href="/">%s</a>' % self.t["all"], '<a href="/%s">%s</a>' % (root[0], html.escape(root[1]))]
         for i, p in enumerate(rel):
@@ -187,12 +195,33 @@ class Handler(BaseHTTPRequestHandler):
 
     def player(self, root, rel):
         src = self.href(root[0], rel, "file")
-        tag = "audio" if os.path.splitext(rel[-1])[1].lower() in AUDIO else "video"
+        if os.path.splitext(rel[-1])[1].lower() in TEXTS:
+            return self.text_page(root, rel, src)
+        tag ="audio" if os.path.splitext(rel[-1])[1].lower() in AUDIO else "video"
         body = ('<p class="crumbs"><a href="%s">&larr; %s</a></p><h1>%s</h1>'
                 '<%s controls playsinline preload="metadata" src="%s"></%s>'
                 '<p class="meta"><a href="%s" download>%s</a></p>'
                 % (self.href(root[0], rel[:-1]), html.escape(rel[-2] if len(rel) > 1 else root[1]),
                    html.escape(rel[-1]), tag, src, tag, src, self.t["download"]))
+        self.send_page(rel[-1], body)
+
+    def text_page(self, root, rel, src):
+        """Subtitles / text: the contents on the page, and a link that downloads the file."""
+        fpath = self.resolve(root[0], rel)[1]
+        if os.path.getsize(fpath) > TEXT_MAX:
+            shown = "<p>%s</p>" % self.t["big"]
+        else:
+            with open(fpath, "rb") as f:
+                raw = f.read()
+            try:
+                txt = raw.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                txt = raw.decode("cp1251", errors="replace")     # old Windows text files
+            shown = "<pre>%s</pre>" % html.escape(txt)
+        body = ('<p class="crumbs"><a href="%s">&larr; %s</a></p><h1>%s</h1>'
+                '<p class="meta"><a href="%s?dl=1" download>%s</a></p>%s'
+                % (self.href(root[0], rel[:-1]), html.escape(rel[-2] if len(rel) > 1 else root[1]),
+                   html.escape(rel[-1]), src, self.t["download"], shown))
         self.send_page(rel[-1], body)
 
     def send_file(self, fpath):
@@ -214,7 +243,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
         else:
             self.send_response(200)
-        self.send_header("Content-Type", MEDIA.get(os.path.splitext(fpath)[1].lower(), "application/octet-stream"))
+        ext = os.path.splitext(fpath)[1].lower()
+        self.send_header("Content-Type", MEDIA.get(ext, "application/octet-stream") + ("; charset=utf-8" if ext in TEXTS else ""))
+        if ext in TEXTS and "dl=1" in urllib.parse.urlsplit(self.path).query:
+            # a real file save, also where the browser ignores the download attribute
+            self.send_header("Content-Disposition", "attachment; filename*=UTF-8''%s"
+                             % urllib.parse.quote(os.path.basename(fpath)))
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(end - start + 1))
         self.end_headers()

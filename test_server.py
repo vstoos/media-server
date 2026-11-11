@@ -29,8 +29,10 @@ def main():
         f.write(bytes(range(256)) * 4)
     with open(os.path.join(tmp, "Trip 2025", "dub.mp3"), "wb") as f:
         f.write(b"ID3" + bytes(64))
-    with open(os.path.join(tmp, "Trip 2025", "notes.txt"), "w") as f:
+    with open(os.path.join(tmp, "Trip 2025", "notes.docx"), "w") as f:
         f.write("secret")
+    with open(os.path.join(tmp, "Trip 2025", "film.uk.srt"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("1\n00:00:01,000 --> 00:00:02,000\nПривіт <всім>\n")
     with open(os.path.join(os.path.dirname(tmp), "outside.mp4"), "wb") as f:
         f.write(b"x")
     port = 18766
@@ -50,13 +52,17 @@ def main():
             ("index lists the folder", get(base + "/")[1].find(key.encode()) >= 0),
             ("folder page shows subfolder and video", all(s in get(base + "/%s/Trip%%202025" % key)[1]
                                                          for s in (b"sub", b"film.mp4"))),
-            ("folder page hides non-video", b"notes.txt" not in get(base + "/%s/Trip%%202025" % key)[1]),
+            ("folder page hides other files", b"notes.docx" not in get(base + "/%s/Trip%%202025" % key)[1]),
+            ("folder page lists subtitles", b"film.uk.srt" in get(base + "/%s/Trip%%202025" % key)[1]),
+            ("subtitle page shows the text escaped", "Привіт &lt;всім&gt;".encode() in
+             get(base + "/%s/play/Trip%%202025/film.uk.srt" % key)[1]),
+            ("subtitle download", get(base + "/%s/file/Trip%%202025/film.uk.srt?dl=1" % key)[1].startswith(b"1\n")),
+            ("other file refused", get(base + "/%s/file/Trip%%202025/notes.docx" % key)[0] == 404),
             ("folder page lists audio", b"dub.mp3" in get(base + "/%s/Trip%%202025" % key)[1]),
             ("audio player page", b"<audio" in get(base + "/%s/play/Trip%%202025/dub.mp3" % key)[1]),
             ("audio file served", get(base + "/%s/file/Trip%%202025/dub.mp3" % key, "bytes=0-2") == (206, b"ID3")),
             ("player page", get(base + "/%s/play/Trip%%202025/film.mp4" % key)[0] == 200),
             ("range request", get(base + "/%s/file/Trip%%202025/film.mp4" % key, "bytes=10-19") == (206, bytes(range(10, 20)))),
-            ("non-video file refused", get(base + "/%s/file/Trip%%202025/notes.txt" % key)[0] == 404),
             ("dot-dot refused", get(base + "/%s/file/..%%2Foutside.mp4" % key)[0] == 404),
             ("encoded traversal refused", get(base + "/%s/file/Trip%%202025%%2F..%%2F..%%2Foutside.mp4" % key)[0] == 404),
             ("unknown root refused", get(base + "/nope/")[0] == 404),

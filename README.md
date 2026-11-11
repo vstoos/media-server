@@ -6,8 +6,9 @@ HDR in Safari on iPhone, iPad and Mac, and in Edge / Chrome on Windows with HEVC
 
 - One Python file, standard library only: no install, no database, no transcoding.
 - Every subfolder is a page; videos and audio files (mp3, m4a, wav, flac, ogg, opus, aac) get a player
-  and a download link; seeking works (HTTP Range).
-- Read-only: nothing can be uploaded, changed or deleted, and only video files inside the folders
+  and a download link; seeking works (HTTP Range). Subtitles and text files (srt, vtt, txt) open as a
+  page to read, with a download link.
+- Read-only: nothing can be uploaded, changed or deleted, and only media and text files inside the folders
   you configure are reachable (paths are resolved and checked against the root).
 - UI in Ukrainian or English, light and dark theme, phone-friendly.
 
