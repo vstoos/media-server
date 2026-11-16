@@ -4,7 +4,18 @@ A tiny read-only video server for your home network: browse your video folders f
 tablet or another computer and play them in the browser, **HDR included** (HLG / HEVC files play in
 HDR in Safari on iPhone, iPad and Mac, and in Edge / Chrome on Windows with HEVC hardware decoding).
 
-- One Python file, standard library only: no install, no database, no transcoding.
+- One Python file, standard library only: no install, no database.
+- **Light version** (optional, needs ffmpeg): every video page has a "Light version (720p)" link for a
+  phone on mobile data or a flaky VPN: at most 1280x720, SDR (HLG/PQ tone-mapped with libplacebo),
+  H.264 + AAC, about 2.5 Mbit/s, cut into 6-second HLS segments. Made once on demand, on an NVIDIA card
+  (NVENC) when one is free, else on the CPU, faster than real time, so it **plays a few seconds after the
+  click** while the rest is still being made. The player ([hls.js](https://github.com/video-dev/hls.js),
+  loaded from jsDelivr) keeps **up to 2 minutes loaded ahead** and shows how much; when the connection
+  drops it plays on from that buffer, says "no connection, retrying", and refills when the link is back
+  (tested: a 47-second outage did not stop playback). iPhone/iPad need iOS 17.1+ for the 2-minute buffer;
+  older Safari plays the same stream with its own buffering. Copies live in `cache/` (capped, least
+  recently watched go first); this is the only place the server writes. Without ffmpeg, or with
+  `--no-lite`, the link is not shown.
 - Every subfolder is a page; videos and audio files (mp3, m4a, wav, flac, ogg, opus, aac) get a player
   and a download link; seeking works (HTTP Range). Subtitles and text files (srt, vtt, txt) open as a
   page to read, with a download link.
@@ -56,6 +67,9 @@ Copy `config.example.json` to `config.json`:
 - per folder, `only`: regular expression a file name must match (e.g. `"[.]mp4$"` for finished films
   only), and `"flat": true` to hide its subfolders. Handy for a "Finished films" entry next to the
   full folder tree.
+- light version: `"lite": false` turns it off; `"lite_cache"` (folder, default `cache/` next to the script),
+  `"lite_cache_gb"` (default 20), `"lite_gpu"` (nvidia-smi index of the preferred card, default 0),
+  `"ffmpeg"` / `"ffprobe"` (paths, default: found on PATH).
 
 ## Start with Windows (optional)
 

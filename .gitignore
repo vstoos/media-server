@@ -2,3 +2,4 @@ config.json
 media_server.log
 test.log
 __pycache__/
+cache/

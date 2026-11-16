@@ -66,7 +66,22 @@ def main():
             ("dot-dot refused", get(base + "/%s/file/..%%2Foutside.mp4" % key)[0] == 404),
             ("encoded traversal refused", get(base + "/%s/file/Trip%%202025%%2F..%%2F..%%2Foutside.mp4" % key)[0] == 404),
             ("unknown root refused", get(base + "/nope/")[0] == 404),
+            ("light version offered for video", b"/lite/Trip%202025/film.mp4" in
+             get(base + "/%s/play/Trip%%202025/film.mp4" % key)[1]),
+            ("no light version for audio", b"/lite/" not in get(base + "/%s/play/Trip%%202025/dub.mp3" % key)[1]
+             and get(base + "/%s/lite/Trip%%202025/dub.mp3" % key)[0] == 404),
+            ("light file 404 until made", get(base + "/%s/litehls/Trip%%202025/film.mp4?s=index.m3u8" % key)[0] == 404),
+            ("light segment name checked", get(base + "/%s/litehls/Trip%%202025/film.mp4?s=..%%5C..%%5Cx.ts" % key)[0] == 404),
+            ("light traversal refused", get(base + "/%s/lite/..%%2Foutside.mp4" % key)[0] == 404),
         ]
+        # film.mp4 is not a real video: the light version must fail cleanly and offer a retry
+        failed = False
+        for _ in range(60):
+            if b"retry=1" in get(base + "/%s/lite/Trip%%202025/film.mp4" % key)[1]:
+                failed = True
+                break
+            time.sleep(0.5)
+        checks.append(("broken video: light version fails with a retry link", failed))
     finally:
         p.terminate()
     for name, ok in checks:
